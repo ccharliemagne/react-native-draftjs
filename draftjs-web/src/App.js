@@ -6,8 +6,7 @@ import {
   getDefaultKeyBinding,
   DefaultDraftBlockRenderMap
 } from "draft-js";
-import { stateFromHTML } from "draft-js-import-html";
-import { stateToHTML } from "draft-js-export-html";
+import {convertToHTML, convertFromHTML} from 'draft-convert'
 import { Map } from "immutable";
 import EditorController from "./Components/EditorController/EditorController";
 
@@ -80,7 +79,13 @@ function App() {
   const setDefaultValue = html => {
     try {
       if (html) {
-        setEditorState(EditorState.createWithContent(stateFromHTML(html)));
+        setEditorState(EditorState.createWithContent(convertFromHTML({
+          htmlToBlock: (nodeName, node) => { 
+            if (String(node.innerHTML) === "<br>") {
+              return {};
+            }
+          },
+        })(html)));
       }
     } catch (e) {
       console.error(e);
@@ -129,7 +134,22 @@ function App() {
   if (window.ReactNativeWebView) {
     window.ReactNativeWebView.postMessage(
       JSON.stringify({
-        editorState: stateToHTML(editorState.getCurrentContent())
+        editorState: convertToHTML({
+          blockToHTML: (block) => {
+              if (block.type === "section") {
+                  return <p />;
+              }
+              if (block.type === "unstyled" && block.text === "") {
+                  return <br />;
+              }
+          },
+          entityToHTML: (entity, originalText) => {
+              if (entity.type === "LINK") {
+                  return <a href={entity.data.url}>{originalText}</a>;
+              }
+              return originalText;
+          },
+        })(editorState.getCurrentContent())
       })
     );
   }
@@ -147,6 +167,7 @@ function App() {
         blockRenderMap={customBlockRenderMap}
         editorState={editorState}
         onChange={setEditorState}
+        handlePastedText={(e,x) => {console.log(e,x)}}
         handleKeyCommand={handleKeyCommand}
         keyBindingFn={mapKeyToEditorCommand}
         placeholder={placeholder}
